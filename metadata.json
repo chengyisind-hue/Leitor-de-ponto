@@ -1,0 +1,5 @@
+{
+  "name": "PontoScan AI",
+  "description": "Intelligent OCR solution for digitizing manual timecards. Extracts hours, calculates overtime, and exports structured data.",
+  "requestFramePermissions": []
+}
