@@ -1,16 +1,19 @@
-
 import React, { useState } from 'react';
-import { FileText, CheckCircle2, AlertTriangle, User, Settings, Upload, X, Moon, Sun } from 'lucide-react';
+import { FileText, CheckCircle2, AlertTriangle, User, Upload } from 'lucide-react';
 import UploadZone from './components/UploadZone';
 import TimecardEditor from './components/TimecardEditor';
+import Login from './components/Login';
 import { ProcessingStatus, TimeRow } from './types';
 import { parseTimecardImage } from './services/geminiService';
-import { normalizeAndSortRow } from './utils';
+import { processRawTimestampsToColumns } from './utils';
 
 // Simple ID generator
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const App: React.FC = () => {
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
   const [status, setStatus] = useState<ProcessingStatus>({ step: 'idle', message: '' });
   const [data, setData] = useState<TimeRow[]>([]);
   
@@ -19,7 +22,6 @@ const App: React.FC = () => {
   const [currentFiles, setCurrentFiles] = useState<File[] | null>(null);
   
   // Settings State
-  const [showSettings, setShowSettings] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
   const handleFileSelect = async (files: File[]) => {
@@ -50,22 +52,17 @@ const App: React.FC = () => {
       }
 
       const processedRows: TimeRow[] = rawRows.map((row: any) => {
-        // *** NORMALIZATION STEP (Immediate Fix) ***
-        // We apply the sorting/joining logic NOW, so the user sees a clean table immediately.
-        const normalized = normalizeAndSortRow(
-          row.entry1, row.exit1, 
-          row.entry2, row.exit2, 
-          row.entry3, row.exit3
-        );
+        const rawTimestamps = Array.isArray(row.timestamps) ? row.timestamps : [];
+        const normalized = processRawTimestampsToColumns(rawTimestamps);
+        const originalEntries = [...rawTimestamps].sort();
 
         return {
           id: generateId(),
           day: row.day || '00',
           date: '', 
-          dayOfWeek: '', // Calendar calc will handle this
-          dayLabel: row.dayLabel || '', // Captured from OCR (e.g. DOM, FOLGA)
+          dayOfWeek: '', 
+          dayLabel: row.dayLabel || '', 
           
-          // Current Values (Normalized)
           entry1: normalized.entry1,
           exit1: normalized.exit1,
           entry2: normalized.entry2,
@@ -73,13 +70,12 @@ const App: React.FC = () => {
           entry3: normalized.entry3,
           exit3: normalized.exit3,
 
-          // Original Values (For Training)
-          originalEntry1: row.entry1 || '',
-          originalExit1: row.exit1 || '',
-          originalEntry2: row.entry2 || '',
-          originalExit2: row.exit2 || '',
-          originalEntry3: row.entry3 || '',
-          originalExit3: row.exit3 || '',
+          originalEntry1: originalEntries[0] || '',
+          originalExit1: originalEntries[1] || '',
+          originalEntry2: originalEntries[2] || '',
+          originalExit2: originalEntries[3] || '',
+          originalEntry3: originalEntries[4] || '',
+          originalExit3: originalEntries[5] || '',
 
           totalWorked: '00:00', 
           balance: '00:00', 
@@ -106,45 +102,17 @@ const App: React.FC = () => {
     setStatus({ step: 'idle', message: '' });
   };
 
-  return (
-    <div className={`min-h-screen font-sans transition-colors duration-200 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className={`w-96 p-6 rounded-xl shadow-2xl ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">Configurações</h3>
-              <button onClick={() => setShowSettings(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-3">
-                  {darkMode ? <Moon className="w-5 h-5 text-purple-400" /> : <Sun className="w-5 h-5 text-orange-500" />}
-                  <span>Modo Escuro</span>
-                </div>
-                <button 
-                  onClick={() => setDarkMode(!darkMode)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${darkMode ? 'bg-purple-600' : 'bg-gray-200'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-              </div>
-            </div>
-            
-            <div className="mt-6 text-center text-xs text-gray-500">
-              Versão Beta 1.4
-            </div>
-          </div>
-        </div>
-      )}
+  if (!isAuthenticated) {
+    return <Login onLogin={() => setIsAuthenticated(true)} darkMode={darkMode} />;
+  }
 
+  return (
+    // Added 'dark' class conditional here to activate Tailwind's dark: modifiers
+    <div className={`min-h-screen font-sans transition-colors duration-200 ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
+      
       {/* Navigation */}
       <nav className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b sticky top-0 z-50`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center gap-3">
               <div className="bg-indigo-600 p-2 rounded-lg">
@@ -156,9 +124,6 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <button onClick={() => setShowSettings(true)} className={`p-2 rounded-full hover:bg-opacity-10 ${darkMode ? 'text-gray-300 hover:bg-white' : 'text-gray-400 hover:bg-black'}`}>
-                <Settings className="h-5 w-5" />
-              </button>
               <div className={`flex items-center gap-2 pl-4 border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                 <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
                   <User className="h-5 w-5 text-gray-500" />
@@ -174,10 +139,10 @@ const App: React.FC = () => {
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="w-full h-[calc(100vh-64px)] overflow-hidden">
         
         {status.step === 'idle' || status.step === 'error' || status.step === 'uploading' ? (
-          <div className="max-w-3xl mx-auto mt-12">
+          <div className="max-w-4xl mx-auto py-12 px-4 overflow-y-auto h-full">
             <div className="text-center mb-10">
               <h1 className={`text-4xl font-extrabold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 Digitalize Frente e Verso em Segundos
@@ -206,7 +171,7 @@ const App: React.FC = () => {
                 { icon: CheckCircle2, color: 'green', title: 'Carga Flexível', desc: 'Configure as horas previstas por dia da semana (Seg-Sex, Sáb) para cálculo exato de extras.' },
                 { icon: Upload, color: 'purple', title: 'Exportação Completa', desc: 'Exporte relatórios com nome do funcionário, cálculos e saldo final.' }
               ].map((item, idx) => (
-                <div key={idx} className={`p-6 rounded-xl shadow-sm border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+                <div key={idx} className={`p-6 rounded-xl shadow-sm border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 bg-${item.color}-100`}>
                     <item.icon className={`text-${item.color}-600 w-5 h-5`} />
                   </div>
@@ -225,9 +190,10 @@ const App: React.FC = () => {
               files={currentFiles} 
               onReset={handleReset}
               darkMode={darkMode}
+              setDarkMode={setDarkMode}
             />
           ) : (
-             <div className="flex flex-col items-center justify-center h-96">
+             <div className="flex flex-col items-center justify-center h-full">
                 <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-600 mb-4"></div>
                 <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-700'}`}>{status.message}</h2>
                 <p className="text-gray-500 mt-2">Processando imagens com Gemini 3...</p>
