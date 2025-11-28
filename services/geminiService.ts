@@ -3,9 +3,26 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { TimeRow } from '../types';
 
 const getGeminiClient = () => {
-  const apiKey = process.env.API_KEY;
+  // Tenta obter a chave via process.env (Node/Webpack) ou import.meta.env (Vite)
+  // O erro relatado "API Key is missing" geralmente ocorre porque o ambiente de build
+  // não injetou o process.env.API_KEY corretamente.
+  let apiKey = process.env.API_KEY;
+  
   if (!apiKey) {
-    throw new Error("API Key is missing. Please ensure process.env.API_KEY is available.");
+    try {
+      // @ts-ignore - Fallback para Vite
+      if (import.meta && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        apiKey = import.meta.env.VITE_API_KEY;
+      }
+    } catch (e) {
+      // Ignora erro se import.meta não existir
+    }
+  }
+
+  if (!apiKey) {
+    console.error("CRITICAL: Gemini API Key is missing.");
+    throw new Error("API Key is missing. Please ensure process.env.API_KEY or VITE_API_KEY is available.");
   }
   return new GoogleGenAI({ apiKey });
 };
