@@ -1,18 +1,21 @@
-import React, { useState } from 'react';
-import { FileText, CheckCircle2, AlertTriangle, User, Upload } from 'lucide-react';
+
+import React, { useState, useEffect } from 'react';
+import { FileText, CheckCircle2, AlertTriangle, User, Upload, LogOut, Loader2 } from 'lucide-react';
 import UploadZone from './components/UploadZone';
 import TimecardEditor from './components/TimecardEditor';
 import Login from './components/Login';
 import { ProcessingStatus, TimeRow } from './types';
 import { parseTimecardImage } from './services/geminiService';
 import { processRawTimestampsToColumns } from './utils';
+import { supabase, signOut } from './services/supabaseClient';
 
 // Simple ID generator
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const App: React.FC = () => {
   // Auth State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [session, setSession] = useState<any>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
   
   const [status, setStatus] = useState<ProcessingStatus>({ step: 'idle', message: '' });
   const [data, setData] = useState<TimeRow[]>([]);
@@ -23,6 +26,28 @@ const App: React.FC = () => {
   
   // Settings State
   const [darkMode, setDarkMode] = useState(false);
+
+  // Initialize Session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoadingSession(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setIsLoadingSession(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await signOut();
+    handleReset(); // Clear data on logout
+  };
 
   const handleFileSelect = async (files: File[]) => {
     setStatus({ step: 'uploading', message: 'Lendo arquivos...' });
@@ -102,8 +127,16 @@ const App: React.FC = () => {
     setStatus({ step: 'idle', message: '' });
   };
 
-  if (!isAuthenticated) {
-    return <Login onLogin={() => setIsAuthenticated(true)} darkMode={darkMode} />;
+  if (isLoadingSession) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Login onLogin={() => {}} darkMode={darkMode} />;
   }
 
   return (
@@ -124,15 +157,23 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <div className={`flex items-center gap-2 pl-4 border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+              <div className={`hidden md:flex items-center gap-2 pl-4 border-l ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
                   <User className="h-5 w-5 text-gray-500" />
                 </div>
                 <div className="text-sm">
-                  <p className={`font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>DP Contabilidade</p>
-                  <p className="text-xs text-gray-500">Admin</p>
+                  <p className={`font-medium max-w-[150px] truncate ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                    {session.user.email}
+                  </p>
                 </div>
               </div>
+              <button 
+                onClick={handleLogout}
+                className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title="Sair"
+              >
+                <LogOut size={20} />
+              </button>
             </div>
           </div>
         </div>
