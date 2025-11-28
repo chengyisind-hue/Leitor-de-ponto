@@ -1003,7 +1003,7 @@ const TimecardEditor: React.FC<TimecardEditorProps> = ({ initialData, imageUrls,
           {isImageVisible && (
             <div id="image-panel" style={{ width: imagePanelWidth }} className={`flex flex-col border-l dark:border-gray-700 bg-gray-200 dark:bg-gray-900 shrink-0 relative overflow-hidden`}>
               <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
-                 <div className="bg-black/50 backdrop-blur text-white text-xs px-2 py-1 rounded shadow">Zoom: {Math.round(imageScale * 100)}%</div>
+                 <div className="bg-black/50 backdrop-blur text-white text-xs px-2 py-1 rounded shadow">Zoom: {Math.round(imageScale * 80)}%</div>
                  {activeEmp.imageUrls.length > 1 && (
                     <div className="flex gap-1 bg-white dark:bg-gray-700 p-1 rounded shadow border dark:border-gray-600">
                       <button onClick={() => setActiveImageIndex(Math.max(0, activeImageIndex - 1))} disabled={activeImageIndex === 0} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"><ChevronLeft size={16}/></button>
